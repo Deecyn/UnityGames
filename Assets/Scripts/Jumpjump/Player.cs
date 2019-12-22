@@ -1,286 +1,323 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
+using DG.Tweening;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
-using DG.Tweening;
-using UnityEngine.Networking;
 using Random = UnityEngine.Random;
+
 
 public class Player : MonoBehaviour
 {
+    // 小人跳跃时，决定远近的一个参数
+    public float Factor;
 
-    // 距离的影响因素，如按压 1 秒中时能跳多远
-    public float DistanceFactor;
+    // 盒子随机最远的距离
+    public float MaxDistance = 5;
 
-    // 新生成盒子的最大的随机距离
-    public float StageMaxDistance = 5;
+    // 第一个盒子物体
+    public GameObject Stage;
 
-    // 最开始的盒子对象
-    public GameObject InitStage;
+    // 盒子仓库，可以放上各种盒子的prefab，用于动态生成。
+    public GameObject[] BoxTemplates;
 
-    // 跟随小人当前位置的相机
-    public Transform CurrentCamera;
+    // 左上角总分的UI组件
+    public Text TotalScoreText;
 
-    // 跟随小人的粒子效果对象
+    // 粒子效果
     public GameObject Particle;
 
     // 小人头部
     public Transform Head;
-    // 小人身体部分
+
+    // 小人身体
     public Transform Body;
 
-    // 总分显示框
-    public Text TotalScoreText;
-
-    // 每次得分时显示的 +1 文本
+    // 飘分的UI组件
     public Text SingleScoreText;
 
-    //public GameObject SaveScorePannel;
-    //public InputField NameField;
-    //public Button SaveButton;
-    //public GameObject RankPanel;
-    //public GameObject RankItem;
+    // 排行榜面板
+    public GameObject RankPanel;
 
-    //　是否更新了加分显示的动画
-    private bool _isUpdateScoreAnimation = false;
+    // 重新开始按钮
+    public Button RestartButton;
 
-    // 加分显示动画的更新时间
-    private float _scoreAnimationTime;
+    // 退出按钮
+    public Button ExitButton;
 
-    // 当前分数
-    private int _score;
-    // 相机的相对位置
-    private Vector3 _cameraRelativePostion;
+    public Text ShowScoreText;
 
-    // 小人当前所在的盒子对象
-    private GameObject _currentStage;
-
-    // 记录小人最近一次碰撞的物体
-    private Collider _lastCollisionCollider;
-
-    // 小人--刚体
-    private Rigidbody _rigibody;
-
-    // 用户按键以开始游戏的时间
+    private Rigidbody _rigidbody;
     private float _startTime;
+    private GameObject _currentStage;
+    private Vector3 _cameraRelativePosition;
+    private int _score;
+    private bool _isUpdateScoreAnimation;
 
-    // 设置新盒子的生成的方向，初始为 x 轴的正方向
-    private Vector3 newStageDirection = new Vector3(1, 0, 0);
+    Vector3 _direction = new Vector3(1, 0, 0);
+    private float _scoreAnimationStartTime;
+    private int _lastReward = 1;
+    private bool _enableInput = true;
 
-    /// 游戏开始时进行的操作
+    // Use this for initialization
     void Start()
     {
-       
-        // 获取刚体组件
-        _rigibody = GetComponent<Rigidbody>();
-        // 设置重心为底部，防止倾倒
-        _rigibody.centerOfMass = new Vector3(0,0,0);
+        _rigidbody = GetComponent<Rigidbody>();
+        _rigidbody.centerOfMass = new Vector3(0, 0, 0);
 
-        _currentStage = InitStage;
-        _lastCollisionCollider = _currentStage.GetComponent<Collider>();
-        NewStage();
+        _currentStage = Stage;
+        SpawnStage();
 
-        // 初始化为相机的位置减去当前小人所在的位置
-        _cameraRelativePostion = CurrentCamera.position - transform.position;
+        _cameraRelativePosition = Camera.main.transform.position - transform.position;
 
-        // 为保存分数按钮绑定事件
-        //SaveButton.onClick.AddListener(OnClickSaveButton);
+        RestartButton.onClick.AddListener(() => { SceneManager.LoadScene(5); });
 
+        ExitButton.onClick.AddListener(() => { SceneManager.LoadScene(0); });
+
+        //_leanCloud = new LeanCloudRestAPI(LeanCloudAppId, LeanCloudAppKey);
     }
 
-    /// 游戏中更新状态的操作
+    // Update is called once per frame
     void Update()
     {
-       
-        // 按下空格键的时候
-        if (Input.GetKeyDown(KeyCode.Space))
+        if (_enableInput)
         {
-            // 赋值为当前时间
-            _startTime = Time.time;
-            Particle.SetActive(true);
+            if (Input.GetMouseButtonDown(0))
+            {
+                _startTime = Time.time;
+                Particle.SetActive(true);
+            }
+
+            if (Input.GetMouseButtonUp(0))
+            {
+                // 计算总共按下空格的时长
+                var elapse = Time.time - _startTime;
+                OnJump(elapse);
+                Particle.SetActive(false);
+
+                //还原小人的形状
+                Body.transform.DOScale(0.1f, 0.2f);
+                Head.transform.DOLocalMoveY(0.29f, 0.2f);
+
+                //还原盒子的形状
+                _currentStage.transform.DOLocalMoveY(-0.25f, 0.2f);
+                _currentStage.transform.DOScaleY(0.5f, 0.2f);
+
+                _enableInput = false;
+            }
+
+            // 处理按下空格时小人和盒子的动画
+            if (Input.GetMouseButton(0))
+            {
+                //添加限定，盒子最多缩放一半
+                if (_currentStage.transform.localScale.y > 0.3)
+                {
+                    Body.transform.localScale += new Vector3(1, -1, 1) * 0.05f * Time.deltaTime;
+                    Head.transform.localPosition += new Vector3(0, -1, 0) * 0.1f * Time.deltaTime;
+
+                    _currentStage.transform.localScale += new Vector3(0, -1, 0) * 0.15f * Time.deltaTime;
+                    _currentStage.transform.localPosition += new Vector3(0, -1, 0) * 0.15f * Time.deltaTime;
+                }
+            }
         }
 
-        // 松开空格键的时候
-        if (Input.GetKeyUp(KeyCode.Space))
-        {
-            var pressTime = Time.time - _startTime;
-            OnJump(pressTime);
-            Particle.SetActive(false);
-
-            // 将小人恢复原状。这里的 0.1f 表示 new Vector3(0.1f,0.1f,0.1f)，0.2f 表示动画时长
-            Body.transform.DOScale(0.1f, 0.2f);
-            Head.transform.DOLocalMoveY(0.25f, 0.2f);
-
-            // 将盒子恢复原状
-            _currentStage.transform.DOLocalMoveY(0.25f,0.2f);
-            _currentStage.transform.DOScale(new Vector3(1,0.5f,1),0.2f);
-        }
-
-        if (Input.GetKey(KeyCode.Space))
-        {
-            // 身体部分的蓄力动画，四周向内缩。deltaTime 表示每一帧渲染的时间，0.05f 表示缩放的速率
-            Body.transform.localScale += new Vector3(1, -1, 1) * 0.05f * Time.deltaTime;
-            // 头部的蓄力动画，位置下降，0.1f 表示下降的速率
-            Head.transform.localPosition += new Vector3(0, -1, 0) * 0.1f * Time.deltaTime;
-
-            // 盒子的蓄力动画
-            _currentStage.transform.localScale += new Vector3(0, -1, 0) * 0.15f * Time.deltaTime;
-            _currentStage.transform.localPosition += new Vector3(0, -1, 0) * 0.15f * Time.deltaTime;
-        }
-
+        // 是否显示飘分效果
         if (_isUpdateScoreAnimation)
-        {
             UpdateScoreAnimation();
+    }
+
+    /// <summary>
+    /// 跳跃
+    /// </summary>
+    /// <param name="elapse"></param>
+    void OnJump(float elapse)
+    {
+        _rigidbody.AddForce(new Vector3(0, 5f, 0) + (_direction) * elapse * Factor, ForceMode.Impulse);
+        transform.DOLocalRotate(new Vector3(0, 0, -360), 0.6f, RotateMode.LocalAxisAdd);
+    }
+
+    /// <summary>
+    /// 生成盒子
+    /// </summary>
+    void SpawnStage()
+    {
+        GameObject prefab;
+        if (BoxTemplates.Length > 0)
+        {
+            // 从盒子库中随机取盒子进行动态生成
+            prefab = BoxTemplates[Random.Range(0, BoxTemplates.Length)];
         }
-    }
+        else
+        {
+            prefab = Stage;
+        }
 
-    /// <summary>
-    /// 根据按键的时间，定义跳的距离，即下次的落点
-    /// </summary>
-    /// <param name="pressTime"></param>
-    void OnJump(float pressTime)
-    {
-        // 定义刚体跳跃的方向、距离
-        _rigibody.AddForce((new Vector3(0, 1, 0) + newStageDirection )* pressTime * DistanceFactor,ForceMode.Impulse);
-    }
+        var stage = Instantiate(prefab);
+        stage.transform.position = _currentStage.transform.position + _direction * Random.Range(1.1f, MaxDistance);
 
-    /// <summary>
-    /// 生成新的盒子
-    /// </summary>
-    void NewStage()
-    {
-        var stage = Instantiate(InitStage);
-        // 设置新盒子的位置：延原盒子的 x 轴方向扩展，
-        // 生成的最小距离为 1.1f，最大距离为 StageMaxDistance；生成的方向由随机的矢量值 newStageDirection 决定
-        stage.transform.position = _currentStage.transform.position + newStageDirection * Random.Range(1.1f, StageMaxDistance);
-
-        // 设置盒子随机大小
-        var randomScale = Random.Range(0.5f,1);
+        var randomScale = Random.Range(0.5f, 1);
         stage.transform.localScale = new Vector3(randomScale, 0.5f, randomScale);
 
-        // 设置盒子的随机颜色
-        stage.GetComponent<Renderer>().material.color = new Color(Random.Range(0f, 1), Random.Range(0f, 1), Random.Range(0f, 1));
+        // 重载函数 或 重载方法
+        stage.GetComponent<Renderer>().material.color =
+            new Color(Random.Range(0f, 1), Random.Range(0f, 1), Random.Range(0f, 1));
+    }
+
+    void OnCollisionExit(Collision collision)
+    {
+        _enableInput = false;
     }
 
     /// <summary>
-    /// 当刚体小人与其他物体碰撞时:
+    /// 小人刚体与其他物体发生碰撞时自动调用
     /// </summary>
-    /// <param name="collision"></param>
     void OnCollisionEnter(Collision collision)
     {
-       
-        // 当小人此次碰撞的物体为盒子，且这个盒子不是小球上一次碰撞后所在的盒子时
-        if (collision.gameObject.name.Contains("Stage") && collision.collider != _lastCollisionCollider)
-        {
-            // 重新指定当前盒子，并生成新的盒子
-            _lastCollisionCollider = collision.collider;
-            _currentStage = collision.gameObject;
-            RandomStageDirection();
-            NewStage();
-            MoveCamera();
-            ShowScoreAnimation();
-
-            _score++;
-            TotalScoreText.text = _score.ToString();
-        }
-
+        Debug.Log(collision.gameObject.name);
         if (collision.gameObject.name == "Ground")
         {
-            // "0" 代表 build settings 里面配置的序号为 0 的场景
-           SceneManager.LoadScene(0);
+            Debug.Log("触碰到地面");
+            OnGameOver();
+        }
+        else
+        {
+            if (_currentStage != collision.gameObject)
+            {
+                var contacts = collision.contacts;
 
-            // 本局游戏结束，显示上传分数 pannel
-            //SaveScorePannel.SetActive(true);
+                //check if player's feet on the stage
+                if (contacts.Length == 1 && contacts[0].normal == Vector3.up)
+                {
+                    _currentStage = collision.gameObject;
+                    AddScore(contacts);
+                    RandomDirection();
+                    SpawnStage();
+                    MoveCamera();
+
+                    _enableInput = true;
+                }
+                else // body collides with the box
+                {
+                    OnGameOver();
+                }
+            }
+            else //still on the same box
+            {
+                var contacts = collision.contacts;
+
+                //check if player's feet on the stage
+                if (contacts.Length == 1 && contacts[0].normal == Vector3.up)
+                {
+                    _enableInput = true;
+                }
+                else // body just collides with this box
+                {
+                    OnGameOver();
+                }
+            }
         }
     }
 
-    // 显示分数的动画
-    void ShowScoreAnimation()
+    /// <summary>
+    /// 加分，准确度高的分数成倍增加
+    /// </summary>
+    /// <param name="contacts">小人与盒子的碰撞点</param>
+    private void AddScore(ContactPoint[] contacts)
+    {
+        if (contacts.Length > 0)
+        {
+            var hitPoint = contacts[0].point;
+            hitPoint.y = 0;
+
+            var stagePos = _currentStage.transform.position;
+            stagePos.y = 0;
+
+            var precision = Vector3.Distance(hitPoint, stagePos);
+            if (precision < 0.1)
+                _lastReward *= 2;
+            else
+                _lastReward = 1;
+
+            _score += _lastReward;
+            TotalScoreText.text = _score.ToString();
+            ShowScoreAnimation();
+        }
+    }
+
+    private void OnGameOver()
+    {
+        Debug.Log("调用游戏结束方法");
+        //if (_score > 0)
+        //{
+            //本局游戏结束，如果得分大于0，显示上传分数panel
+            //SaveScorePanel.SetActive(true);
+        //}
+        //else
+        //{
+            //否则直接显示排行榜
+            ShowRankPanel();
+        //}
+    }
+
+    /// <summary>
+    /// 显示飘分动画
+    /// </summary>
+    private void ShowScoreAnimation()
     {
         _isUpdateScoreAnimation = true;
-        _scoreAnimationTime = Time.time;
-       
+        _scoreAnimationStartTime = Time.time;
+        SingleScoreText.text = "+" + _lastReward;
     }
 
-    // 随着小人位置的变化，更新加分显示框的动画位置
+    /// <summary>
+    /// 更新飘分动画
+    /// </summary>
     void UpdateScoreAnimation()
     {
-        // 每隔一段时间，设置需要更新动画
-        if (Time.time - _scoreAnimationTime > 1)
-        {
+        if (Time.time - _scoreAnimationStartTime > 1)
             _isUpdateScoreAnimation = false;
-        }
 
-        // 设置初始位置为小人的位置；将小人的三维位置转化为文本框的二维位置
-        var playerScreenPos = RectTransformUtility.WorldToScreenPoint(CurrentCamera.GetComponent<Camera>(), transform.position);
-        // 设置显示的位置渐变
-        SingleScoreText.transform.position = playerScreenPos + 
-            Vector2.Lerp(Vector2.zero, new Vector2(0, 200),Time.time - _scoreAnimationTime);
-        // 设置文本颜色的渐变
-        SingleScoreText.color = Color.Lerp(Color.black, new Color(0, 0, 0, 0), Time.time - _scoreAnimationTime);
+        var playerScreenPos =
+            RectTransformUtility.WorldToScreenPoint(Camera.main, transform.position);
+        SingleScoreText.transform.position = playerScreenPos +
+                                             Vector2.Lerp(Vector2.zero, new Vector2(0, 200),
+                                                 Time.time - _scoreAnimationStartTime);
+
+        SingleScoreText.color = Color.Lerp(Color.black, new Color(0, 0, 0, 0), Time.time - _scoreAnimationStartTime);
     }
 
-
-    void RandomStageDirection()
+    /// <summary>
+    /// 随机方向
+    /// </summary>
+    void RandomDirection()
     {
         var seed = Random.Range(0, 2);
-        if (seed == 0)
-        {
-            newStageDirection = new Vector3(1, 0, 0);
-        }
-        else
-        {
-            newStageDirection = new Vector3(0, 0, 1);
-        }
+        _direction = seed == 0 ? new Vector3(1, 0, 0) : new Vector3(0, 0, 1);
+        transform.right = _direction;
     }
 
-    // 移动相机
+    /// <summary>
+    /// 移动摄像机
+    /// </summary>
     void MoveCamera()
     {
-        // 移动相机，1 代表移动时，动画的时长
-       CurrentCamera.DOMove(transform.position + _cameraRelativePostion,1);
+        Camera.main.transform.DOMove(transform.position + _cameraRelativePosition, 1);
     }
 
-    // 保存分数的按钮
+    /// <summary>
+    /// 处理点击上传分数按钮
+    /// </summary>
     void OnClickSaveButton()
     {
-        //var nickname = NameField.text;
-        var score =  _score;
-
-        // 上传数据到服务器
-        Post();
 
     }
 
-    IEnumerator Post()
-    {
-        Debug.Log("提交分数");
-        WWWForm from = new WWWForm();
-
-        from.AddField("name", "testzhang");
-        from.AddField("score", 17);
-
-        UnityWebRequest webRequest = UnityWebRequest.Post("http://dawsson.qicp.vip/api/updateScore",from);
-        yield return webRequest.SendWebRequest();
-
-        if (webRequest.isHttpError || webRequest.isNetworkError)
-        {
-            Debug.Log(webRequest.error);
-        }
-        else
-        {
-            Debug.Log(webRequest.downloadHandler.text);
-        }
-    }
-
-    // 显示分数排行的 panel
+    /// <summary>
+    /// 显示排行榜面板
+    /// </summary>
     void ShowRankPanel()
     {
-        // 从服务器获取数据,然后到列表
-       
+        ShowScoreText.text = "你的分数：" + _score;
+        RankPanel.SetActive(true);
     }
-
-
 }

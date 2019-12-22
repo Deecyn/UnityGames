@@ -8,7 +8,7 @@ public class ButtonLoading : MonoBehaviour
 
     public void StartJump()
     {
-        SceneManager.LoadScene("JumpJumpScene");
+        SceneManager.LoadScene("JumpJump");
     }
 
     public void StartPacman()

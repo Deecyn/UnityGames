@@ -9,9 +9,6 @@ EditorBuildSettings:
     path: Assets/Scenes/MenuScene.unity
     guid: 22c86d98b37eacf4c9372dcf760a29c7
   - enabled: 1
-    path: Assets/Scenes/JumpJumpScene.unity
-    guid: 4c10a07c9c23c94498d7cd7432ce40a8
-  - enabled: 1
     path: Assets/Scenes/menu.unity
     guid: ffe6537212133a845839df87c7ee5bbd
   - enabled: 1
@@ -23,4 +20,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/credits.unity
     guid: 6641f5f5d11d46843966ea678e7dcebe
+  - enabled: 1
+    path: Assets/Scenes/JumpJump.unity
+    guid: 1868dd8097aeea34188288048effcc3b
   m_configObjects: {}
