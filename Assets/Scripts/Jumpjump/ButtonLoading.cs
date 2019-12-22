@@ -10,4 +10,9 @@ public class ButtonLoading : MonoBehaviour
     {
         SceneManager.LoadScene("JumpJumpScene");
     }
+
+    public void StartPacman()
+    {
+        SceneManager.LoadScene("menu");
+    }
 }
