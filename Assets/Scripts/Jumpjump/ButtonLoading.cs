@@ -15,4 +15,9 @@ public class ButtonLoading : MonoBehaviour
     {
         SceneManager.LoadScene("menu");
     }
+
+    public void ReturnMenu()
+    {
+        SceneManager.LoadScene("MenuScene");
+    }
 }
