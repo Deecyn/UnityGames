@@ -6,13 +6,14 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using Random = UnityEngine.Random;
 
-//跳一跳：王德鑫：游戏整合，角色跳跃，盒子生成，碰撞检测，
-//王志强：相机跟随，飘分动画，背景变色
+// 跳一跳：
+// 王德鑫：游戏整合，角色跳跃，盒子生成，碰撞检测，
+// 王志强：相机跟随，飘分动画，背景变色
 
 public class Player : MonoBehaviour
 {
     // 小人跳跃时，影响远近的一个参数
-    public float Factor;
+    public float DistanceFactor;
 
     // 新生成盒子的最远的随机距离
     public float MaxDistance = 5;
@@ -38,8 +39,8 @@ public class Player : MonoBehaviour
     // 跳跃成功时，飘分的UI组件
     public Text SingleScoreText;
 
-    // 游戏结束面板面板
-    public GameObject RankPanel;
+    // 游戏结束面板
+    public GameObject OverPanel;
 
     // 重新开始按钮
     public Button RestartButton;
@@ -73,7 +74,6 @@ public class Player : MonoBehaviour
     Vector3 _direction = new Vector3(1, 0, 0);
     // 上次得分的分数
     private int _lastReward = 1;
-    private bool _enableInput = true;
 
     // Use this for initialization
     void Start()
@@ -85,6 +85,7 @@ public class Player : MonoBehaviour
         // 设置当前台阶
         _currentStage = Stage;
         SpawnStage();
+
         // 设置相机的相对位置差
         _cameraRelativePosition = Camera.main.transform.position - transform.position;
 
@@ -94,47 +95,41 @@ public class Player : MonoBehaviour
         ExitButton.onClick.AddListener(() => { SceneManager.LoadScene(0); });
     }
 
-    // Update is called once per frame
     void Update()
     {
-        if (_enableInput)
+        if (Input.GetMouseButtonDown(0) || Input.GetKeyDown(KeyCode.Space))
         {
-            if (Input.GetMouseButtonDown(0) || Input.GetKeyDown(KeyCode.Space))
+            _startTime = Time.time;
+            Particle.SetActive(true);
+        }
+
+        if (Input.GetMouseButtonUp(0) || Input.GetKeyUp(KeyCode.Space))
+        {
+            // 计算总共按下空格的时长
+            var elapse = Time.time - _startTime;
+            OnJump(elapse);
+            Particle.SetActive(false);
+
+            //还原小人的形状
+            Body.transform.DOScale(0.1f, 0.2f);
+            Head.transform.DOLocalMoveY(0.29f, 0.2f);
+
+            //还原盒子的形状
+            _currentStage.transform.DOLocalMoveY(-0.25f, 0.2f);
+            _currentStage.transform.DOScaleY(0.5f, 0.2f);
+        }
+
+        // 处理按下空格时小人和盒子的动画
+        if (Input.GetMouseButton(0) || Input.GetKey(KeyCode.Space))
+        {
+            //添加限定，盒子和角色最多缩放一半
+            if (_currentStage.transform.localScale.y > 0.3)
             {
-                _startTime = Time.time;
-                Particle.SetActive(true);
-            }
+                Body.transform.localScale += new Vector3(1, -1, 1) * 0.05f * Time.deltaTime;
+                Head.transform.localPosition += new Vector3(0, -1, 0) * 0.1f * Time.deltaTime;
 
-            if (Input.GetMouseButtonUp(0) || Input.GetKeyUp(KeyCode.Space))
-            {
-                // 计算总共按下空格的时长
-                var elapse = Time.time - _startTime;
-                OnJump(elapse);
-                Particle.SetActive(false);
-
-                //还原小人的形状
-                Body.transform.DOScale(0.1f, 0.2f);
-                Head.transform.DOLocalMoveY(0.29f, 0.2f);
-
-                //还原盒子的形状
-                _currentStage.transform.DOLocalMoveY(-0.25f, 0.2f);
-                _currentStage.transform.DOScaleY(0.5f, 0.2f);
-
-                _enableInput = false;
-            }
-
-            // 处理按下空格时小人和盒子的动画
-            if (Input.GetMouseButton(0) || Input.GetKey(KeyCode.Space))
-            {
-                //添加限定，盒子和角色最多缩放一半
-                if (_currentStage.transform.localScale.y > 0.3)
-                {
-                    Body.transform.localScale += new Vector3(1, -1, 1) * 0.05f * Time.deltaTime;
-                    Head.transform.localPosition += new Vector3(0, -1, 0) * 0.1f * Time.deltaTime;
-
-                    _currentStage.transform.localScale += new Vector3(0, -1, 0) * 0.15f * Time.deltaTime;
-                    _currentStage.transform.localPosition += new Vector3(0, -1, 0) * 0.15f * Time.deltaTime;
-                }
+                _currentStage.transform.localScale += new Vector3(0, -1, 0) * 0.15f * Time.deltaTime;
+                _currentStage.transform.localPosition += new Vector3(0, -1, 0) * 0.15f * Time.deltaTime;
             }
         }
 
@@ -143,11 +138,11 @@ public class Player : MonoBehaviour
             UpdateScoreAnimation();
     }
 
-    // 跳跃
+    // 实现跳跃
     void OnJump(float elapse)
     {
         // 向刚体施加力，使其运动
-        _rigidbody.AddForce(new Vector3(0, 5f, 0) + (_direction) * elapse * Factor, ForceMode.Impulse);
+        _rigidbody.AddForce(new Vector3(0, 5f, 0) + (_direction) * elapse * DistanceFactor, ForceMode.Impulse);
         // 角色在空中旋转
         transform.DOLocalRotate(new Vector3(0, 0, -360), 0.6f, RotateMode.LocalAxisAdd);
     }
@@ -179,56 +174,36 @@ public class Player : MonoBehaviour
             new Color(Random.Range(0f, 1), Random.Range(0f, 1), Random.Range(0f, 1));
     }
 
-    void OnCollisionExit(Collision collision)
-    {
-        _enableInput = false;
-    }
 
     // 小人刚体与其他物体发生碰撞时自动调用
     void OnCollisionEnter(Collision collision)
     {
+        // 碰撞地面时
         if (collision.gameObject.name == "Ground")
         {
             OnGameOver();
         }
-        else
+        // 碰撞的非当前盒子时
+        else if (_currentStage != collision.gameObject)
         {
-            if (_currentStage != collision.gameObject)
+            // 碰撞到的点的数组，即碰撞点
+            var contacts = collision.contacts;
+
+            // 碰撞到的第一个点法线向量是向上的，预防碰撞到盒子边缘面的情况
+            if (contacts.Length == 1 && contacts[0].normal == Vector3.up)
             {
-                // 碰撞到的点的数组，即碰撞点
-                var contacts = collision.contacts;
+                _currentStage = collision.gameObject;
+                AddScore(contacts);
+                RandomDirection();
+                SpawnStage();
+                MoveCamera();
 
-                // 碰撞到的第一个点法线向量
-                if (contacts.Length == 1 && contacts[0].normal == Vector3.up)
-                {
-                    _currentStage = collision.gameObject;
-                    AddScore(contacts);
-                    RandomDirection();
-                    SpawnStage();
-                    MoveCamera();
-
-                    _enableInput = true;
-                }
-                else
-                {
-                    OnGameOver();
-                }
             }
             else
             {
-                var contacts = collision.contacts;
-
-                //check if player's feet on the stage
-                if (contacts.Length == 1 && contacts[0].normal == Vector3.up)
-                {
-                    _enableInput = true;
-                }
-                else // body just collides with this box
-                {
-                    OnGameOver();
-                }
+                OnGameOver();
             }
-        }
+        } 
     }
 
     /// 加分，准确度高的分数成倍增加
@@ -257,7 +232,7 @@ public class Player : MonoBehaviour
 
     private void OnGameOver()
     {
-        ShowRankPanel();
+        ShowOverPanel();
     }
 
     /// 显示飘分动画
@@ -299,10 +274,10 @@ public class Player : MonoBehaviour
         Camera.main.transform.DOMove(transform.position + _cameraRelativePosition, 1);
     }
 
-    // 显示排行榜面板
-    void ShowRankPanel()
+    // 显示得分面板
+    void ShowOverPanel()
     {
         ShowScoreText.text = "你的分数：" + _score;
-        RankPanel.SetActive(true);
+        OverPanel.SetActive(true);
     }
 }

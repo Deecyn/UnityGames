@@ -253,7 +253,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2ec1955c53c05ec40b513d232e9869d2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  Factor: 4
+  DistanceFactor: 4
   MaxDistance: 3
   Stage: {fileID: 7066607482831748586}
   BoxTemplates: []
@@ -262,7 +262,7 @@ MonoBehaviour:
   Head: {fileID: 756688665}
   Body: {fileID: 1412966906}
   SingleScoreText: {fileID: 84468300}
-  RankPanel: {fileID: 783886215}
+  OverPanel: {fileID: 783886215}
   RestartButton: {fileID: 573192566}
   ExitButton: {fileID: 1930981268}
   ShowScoreText: {fileID: 931055537}
@@ -5363,7 +5363,7 @@ GameObject:
   - component: {fileID: 783886218}
   - component: {fileID: 783886217}
   m_Layer: 5
-  m_Name: RankPanel
+  m_Name: OverPanel
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
