@@ -5,19 +5,14 @@ using UnityEngine.SceneManagement;
 
 public class ButtonLoading : MonoBehaviour
 {
-
-    public void StartJump()
-    {
+    public void StartJump(){
         SceneManager.LoadScene("JumpJump");
     }
-
-    public void StartPacman()
-    {
+    public void StartPacman(){
         SceneManager.LoadScene("menu");
     }
 
-    public void ReturnMenu()
-    {
+    public void ReturnMenu(){
         SceneManager.LoadScene("MenuScene");
     }
 }
