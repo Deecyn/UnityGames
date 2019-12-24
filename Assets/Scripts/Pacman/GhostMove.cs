@@ -3,147 +3,152 @@ using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 
-public class GhostMove : MonoBehaviour {
+public class GhostMove : MonoBehaviour
+{
 
-    // ----------------------------
-    // Navigation variables
-	private Vector3 waypoint;			// AI-determined waypoint
-	private Queue<Vector3> waypoints;	// waypoints used on Init and Scatter states
 
-	// direction is set from the AI component
-	public Vector3 _direction;
-	public Vector3 direction 
-	{
-		get
-		{
-			return _direction;
-		}
+    // AI 路线
+    private Vector3 waypoint;
+    // 用队列来存放路径 用来初始化与scatter的状态
+    private Queue<Vector3> waypoints;
 
-		set
-		{
-			_direction = value;
-			Vector3 pos = new Vector3((int)transform.position.x, (int)transform.position.y, (int)transform.position.z);
-			waypoint = pos + _direction;
-			//Debug.Log ("waypoint (" + waypoint.position.x + ", " + waypoint.position.y + ") set! _direction: " + _direction.x + ", " + _direction.y);
-		
-		}
-	}
+    // 在 AI 中获取到的方向
+    public Vector3 _direction;
+    public Vector3 direction
+    {
+        get
+        {
+            return _direction;
+        }
 
-	public float speed = 0.3f;
+        set
+        {
+            // 将路径点设为当前路径加上方向
+            _direction = value;
+            Vector3 pos = new Vector3((int)transform.position.x, (int)transform.position.y, (int)transform.position.z);
+            waypoint = pos + _direction;
+            //Debug.Log ("waypoint (" + waypoint.position.x + ", " + waypoint.position.y + ") set! _direction: " + _direction.x + ", " + _direction.y);
 
-    // ----------------------------
-    // Ghost mode variables
-	public float scatterLength = 5f;
-	public float waitLength = 0.0f;
+        }
+    }
 
-	private float timeToEndScatter;
-	private float timeToEndWait;
+    public float speed = 0.3f;
 
-	enum State { Wait, Init, Scatter, Chase, Run };
-	State state;
 
+
+    public float scatterLength = 5f;
+    public float waitLength = 0.0f;
+
+    // 给每一种状态设置一定的结束时间
+    private float timeToEndScatter;
+    private float timeToEndWait;
+
+    // ghost总共有五种状态
+    enum State { Wait, Init, Scatter, Chase, Run };
+    State state;
+
+    // 鬼变色过程参数
     private Vector3 _startPos;
     private float _timeToWhite;
     private float _timeToToggleWhite;
     private float _toggleInterval;
     private bool isWhite = false;
 
-	// handles
-	public GameGUINavigation GUINav;
+    // 对鬼进行控制
+    public GameGUINavigation GUINav;
     public PlayerController pacman;
     private GameManager _gm;
 
-	//-----------------------------------------------------------------------------------------
-	// variables end, functions begin
-	void Start()
-	{
-	    _gm = GameObject.Find("Game Manager").GetComponent<GameManager>();
-        _toggleInterval = _gm.scareLength * 0.33f * 0.20f;  
-		InitializeGhost();
-	}
+
+
+    void Start()
+    {
+        _gm = GameObject.Find("Game Manager").GetComponent<GameManager>();
+        // 初始化鬼变的时常 以及初始化鬼
+        _toggleInterval = _gm.scareLength * 0.33f * 0.20f;
+        InitializeGhost();
+    }
 
     public float DISTANCE;
 
-	void FixedUpdate ()
-	{
-	    DISTANCE = Vector3.Distance(transform.position, waypoint);
-
-		if(GameManager.gameState == GameManager.GameState.Game){
-			animate ();
-
-			switch(state)
-			{
-			case State.Wait:
-				Wait();
-				break;
-
-			case State.Init:
-				Init();
-				break;
-
-			case State.Scatter:
-				Scatter();
-				break;
-
-			case State.Chase:
-				ChaseAI();
-				break;
-
-			case State.Run:
-				RunAway();
-				break;
-			}
-		}
-	}
-
-	//-----------------------------------------------------------------------------------
-	// Start() functions
-
-	public void InitializeGhost()
-	{
-	    _startPos = getStartPosAccordingToName();
-		waypoint = transform.position;	// to avoid flickering animation
-		state = State.Wait;
-	    timeToEndWait = Time.time + waitLength + GUINav.initialDelay;
-		InitializeWaypoints(state);
-	}
-
-    public void InitializeGhost(Vector3 pos)
+    void FixedUpdate()
     {
-        transform.position = pos;
-        waypoint = transform.position;	// to avoid flickering animation
+        // 更新与路径点的距离
+        DISTANCE = Vector3.Distance(transform.position, waypoint);
+
+        // 在游戏状态中时 选择鬼现在的状态
+        if (GameManager.gameState == GameManager.GameState.Game)
+        {
+            animate();
+
+            switch (state)
+            {
+                case State.Wait:
+                    Wait();
+                    break;
+
+                case State.Init:
+                    Init();
+                    break;
+
+                case State.Scatter:
+                    Scatter();
+                    break;
+
+                case State.Chase:
+                    ChaseAI();
+                    break;
+
+                case State.Run:
+                    RunAway();
+                    break;
+            }
+        }
+    }
+
+
+
+
+    // 初始化鬼 以及鬼下一步的位置
+    public void InitializeGhost()
+    {
+        _startPos = getStartPosAccordingToName();
+        // 避免闪烁动画
+        waypoint = transform.position;
         state = State.Wait;
         timeToEndWait = Time.time + waitLength + GUINav.initialDelay;
         InitializeWaypoints(state);
     }
-	
+
+    public void InitializeGhost(Vector3 pos)
+    {
+        transform.position = pos;
+        waypoint = transform.position;
+        state = State.Wait;
+        timeToEndWait = Time.time + waitLength + GUINav.initialDelay;
+        InitializeWaypoints(state);
+    }
+
 
     private void InitializeWaypoints(State st)
     {
-        //--------------------------------------------------
-        // File Format: Init and Scatter coordinates separated by empty line
-        // Init X,Y 
-        // Init X,Y
-        // 
-        // Scatter X,Y
-        // Scatter X,Y
 
-        //--------------------------------------------------
-        // hardcode waypoints according to name.
+        // Init和Scatter状态下的路径
+        // 根据名字 对鬼的位置进行直接编码 读行即可
         string data = "";
         switch (name)
         {
-        case "blinky":
-            data = @"22 20
+            case "blinky":
+                data = @"22 20
 22 26
 
 27 26
 27 30
 22 30
 22 26";
-            break;
-        case "pinky":
-            data = @"14.5 17
+                break;
+            case "pinky":
+                data = @"14.5 17
 14 17
 14 20
 7 20
@@ -152,9 +157,9 @@ public class GhostMove : MonoBehaviour {
 7 30
 2 30
 2 26";
-            break;
-        case "inky":
-            data = @"16.5 17
+                break;
+            case "inky":
+                data = @"16.5 17
 15 17
 15 20
 22 20
@@ -167,9 +172,9 @@ public class GhostMove : MonoBehaviour {
 27 2
 27 5
 22 5";
-            break;
-        case "clyde":
-            data = @"12.5 17
+                break;
+            case "clyde":
+                data = @"12.5 17
 14 17
 14 20
 7 20
@@ -182,25 +187,28 @@ public class GhostMove : MonoBehaviour {
 13 5
 10 5
 10 8";
-            break;
-        
+                break;
+
         }
 
-        //-------------------------------------------------
-        // read from the hardcoded waypoints
+
+
+        // 从编码中读入
         string line;
 
         waypoints = new Queue<Vector3>();
         Vector3 wp;
 
+        // 在建立的状态下
         if (st == State.Init)
         {
             using (StringReader reader = new StringReader(data))
             {
-                // stop reading if empty line is reached
+                // 空了就不读了
                 while ((line = reader.ReadLine()) != null)
                 {
-                    if (line.Length == 0) break; // DOES IT WORK????
+
+                    if (line.Length == 0) break;
 
                     string[] values = line.Split(' ');
                     float x = float.Parse(values[0]);
@@ -212,10 +220,12 @@ public class GhostMove : MonoBehaviour {
             }
         }
 
+        // 在Scatter的状态下
         if (st == State.Scatter)
         {
-            // skip until empty line is reached, read coordinates afterwards
-            bool scatterWps = false;	// Scatter waypoints
+
+            // 如果已经读空编码 然后直接读取坐标
+            bool scatterWps = false;
 
             using (StringReader reader = new StringReader(data))
             {
@@ -223,8 +233,10 @@ public class GhostMove : MonoBehaviour {
                 {
                     if (line.Length == 0)
                     {
-                        scatterWps = true; // we reached the scatter waypoints
-                        continue; // do not read empty line, go to next line
+                        // 直到空行以后开始读取
+                        // 为了避免初始位置
+                        scatterWps = true;
+                        continue;
                     }
 
                     if (scatterWps)
@@ -240,18 +252,19 @@ public class GhostMove : MonoBehaviour {
             }
         }
 
-        // if in wait state, patrol vertically
+
+        // 在等待状态下
         if (st == State.Wait)
         {
             Vector3 pos = transform.position;
 
-            // inky and clyde start going down and then up
+            // 左右两只先下后上
             if (transform.name == "inky" || transform.name == "clyde")
             {
                 waypoints.Enqueue(new Vector3(pos.x, pos.y - 0.5f, 0f));
                 waypoints.Enqueue(new Vector3(pos.x, pos.y + 0.5f, 0f));
             }
-            // while pinky start going up and then down
+            // 中间先上后下
             else
             {
                 waypoints.Enqueue(new Vector3(pos.x, pos.y + 0.5f, 0f));
@@ -261,6 +274,7 @@ public class GhostMove : MonoBehaviour {
 
     }
 
+    // 根据鬼的名字来对鬼的位置进行初始化
     private Vector3 getStartPosAccordingToName()
     {
         switch (gameObject.name)
@@ -270,7 +284,7 @@ public class GhostMove : MonoBehaviour {
 
             case "pinky":
                 return new Vector3(14.5f, 17f, 0f);
-            
+
             case "inky":
                 return new Vector3(16.5f, 17f, 0f);
 
@@ -281,166 +295,174 @@ public class GhostMove : MonoBehaviour {
         return new Vector3();
     }
 
-	//------------------------------------------------------------------------------------
-	// Update functions
-	void animate()
-	{
-		Vector3 dir = waypoint - transform.position;
-		GetComponent<Animator>().SetFloat("DirX", dir.x);
-		GetComponent<Animator>().SetFloat("DirY", dir.y);
-		GetComponent<Animator>().SetBool("Run", false);
-	}
 
-	void OnTriggerEnter2D(Collider2D other)
-	{
-		if(other.name == "pacman")
-		{
-			//Destroy(other.gameObject);
-		    if (state == State.Run)
-		    {
-		        Calm();
-		        InitializeGhost(_startPos);
+    // 对状态机进行改变
+    void animate()
+    {
+        Vector3 dir = waypoint - transform.position;
+        GetComponent<Animator>().SetFloat("DirX", dir.x);
+        GetComponent<Animator>().SetFloat("DirY", dir.y);
+        GetComponent<Animator>().SetBool("Run", false);
+    }
+
+    // 
+    void OnTriggerEnter2D(Collider2D other)
+    {
+        if (other.name == "pacman")
+        {
+            //Destroy(other.gameObject);
+            if (state == State.Run)
+            {
+                Calm();
+                InitializeGhost(_startPos);
                 pacman.UpdateScore();
-		    }
-		       
-		    else
-		    {
-		        _gm.LoseLife();
-		    }
+            }
 
-		}
-	}
+            else
+            {
+                _gm.LoseLife();
+            }
 
-	//-----------------------------------------------------------------------------------
-	// State functions
-	void Wait()
-	{
-		if(Time.time >= timeToEndWait)
-		{
-			state = State.Init;
-		    waypoints.Clear();
-			InitializeWaypoints(state);
-		}
+        }
+    }
 
-		// get the next waypoint and move towards it
-		MoveToWaypoint(true);
-	}
 
-	void Init()
-	{
-	    _timeToWhite = 0;
+    // 等待中建立好状态 将路径清空
+    void Wait()
+    {
+        if (Time.time >= timeToEndWait)
+        {
+            state = State.Init;
+            waypoints.Clear();
+            InitializeWaypoints(state);
+        }
 
-		// if the Queue is cleared, do some clean up and change the state
-		if(waypoints.Count == 0)
-		{
-			state = State.Scatter;
+        // 往下一个路径点走
+        MoveToWaypoint(true);
+    }
 
-		    //get direction according to sprite name
-			string name = GetComponent<SpriteRenderer>().sprite.name;
-			if(name[name.Length-1] == '0' || name[name.Length-1] == '1')	direction = Vector3.right;
-			if(name[name.Length-1] == '2' || name[name.Length-1] == '3')	direction = Vector3.left;
-			if(name[name.Length-1] == '4' || name[name.Length-1] == '5')	direction = Vector3.up;
-			if(name[name.Length-1] == '6' || name[name.Length-1] == '7')	direction = Vector3.down;
+    // 
+    void Init()
+    {
+        _timeToWhite = 0;
 
-			InitializeWaypoints(state);
-			timeToEndScatter = Time.time + scatterLength;
+        // 更新状态 恢复Scatter状态
+        if (waypoints.Count == 0)
+        {
+            state = State.Scatter;
 
-			return;
-		}
+            // 获取姓名 改变其方向
+            string name = GetComponent<SpriteRenderer>().sprite.name;
+            if (name[name.Length - 1] == '0' || name[name.Length - 1] == '1') direction = Vector3.right;
+            if (name[name.Length - 1] == '2' || name[name.Length - 1] == '3') direction = Vector3.left;
+            if (name[name.Length - 1] == '4' || name[name.Length - 1] == '5') direction = Vector3.up;
+            if (name[name.Length - 1] == '6' || name[name.Length - 1] == '7') direction = Vector3.down;
 
-		// get the next waypoint and move towards it
-		MoveToWaypoint();
-	}
+            InitializeWaypoints(state);
+            timeToEndScatter = Time.time + scatterLength;
 
-	void Scatter()
-	{
-		if(Time.time >= timeToEndScatter)
-		{
-			waypoints.Clear();
-			state = State.Chase;
-		    return;
-		}
+            return;
+        }
 
-		// get the next waypoint and move towards it
-		MoveToWaypoint(true);
+        // 向下一方向行动
+        MoveToWaypoint();
+    }
 
-	}
+    // 如果Scatter时间未到 则继续
+    // 时间到了 则进入下一状态
+    void Scatter()
+    {
+        if (Time.time >= timeToEndScatter)
+        {
+            waypoints.Clear();
+            state = State.Chase;
+            return;
+        }
+
+        // 朝下一个路径点运动
+        MoveToWaypoint(true);
+
+    }
+
 
     void ChaseAI()
-	{
+    {
 
-        // if not at waypoint, move towards it
+        // 如果不是路径 则不断向其逼近
         if (Vector3.Distance(transform.position, waypoint) > 0.000000000001)
-		{
-			Vector2 p = Vector2.MoveTowards(transform.position, waypoint, speed);
-			GetComponent<Rigidbody2D>().MovePosition(p);
-		}
+        {
+            Vector2 p = Vector2.MoveTowards(transform.position, waypoint, speed);
+            GetComponent<Rigidbody2D>().MovePosition(p);
+        }
 
-		// if at waypoint, run AI module
-		else GetComponent<AI>().AILogic();
+        // 如果在路径上按照AI运动
+        else GetComponent<AI>().AILogic();
 
-	}
+    }
 
-	void RunAway()
-	{
-		GetComponent<Animator>().SetBool("Run", true);
+    void RunAway()
+    {
+        GetComponent<Animator>().SetBool("Run", true);
 
-        if(Time.time >= _timeToWhite && Time.time >= _timeToToggleWhite)   ToggleBlueWhite();
+        if (Time.time >= _timeToWhite && Time.time >= _timeToToggleWhite) ToggleBlueWhite();
 
-		// if not at waypoint, move towards it
+        // 如果不在路径上 就朝目标移动
         if (Vector3.Distance(transform.position, waypoint) > 0.000000000001)
-		{
-			Vector2 p = Vector2.MoveTowards(transform.position, waypoint, speed);
-			GetComponent<Rigidbody2D>().MovePosition(p);
-		}
-		
-		// if at waypoint, run AI run away logic
-		else GetComponent<AI>().RunLogic();
+        {
+            Vector2 p = Vector2.MoveTowards(transform.position, waypoint, speed);
+            GetComponent<Rigidbody2D>().MovePosition(p);
+        }
 
-	}
+        // 如果在路径上按照AI运动
+        else GetComponent<AI>().RunLogic();
 
-	//------------------------------------------------------------------------------
-	// Utility functions
-	void MoveToWaypoint(bool loop = false)
-	{
-		waypoint = waypoints.Peek();		// get the waypoint (CHECK NULL?)
-        if (Vector3.Distance(transform.position, waypoint) > 0.000000000001)	// if its not reached
-		{									                        // move towards it
-			_direction = Vector3.Normalize(waypoint - transform.position);	// dont screw up waypoint by calling public setter
-			Vector2 p = Vector2.MoveTowards(transform.position, waypoint, speed);
-			GetComponent<Rigidbody2D>().MovePosition(p);
-		}
-		else 	// if waypoint is reached, remove it from the queue
-		{
-			if(loop)	waypoints.Enqueue(waypoints.Dequeue());
-			else		waypoints.Dequeue();
-		}
-	}
+    }
 
-	public void Frighten()
-	{
-		state = State.Run;
-		_direction *= -1;
+
+    // 从队列中读取出路径位置
+    void MoveToWaypoint(bool loop = false)
+    {
+        waypoint = waypoints.Peek();		// 读取路径点
+        // 没到路径点
+        if (Vector3.Distance(transform.position, waypoint) > 0.000000000001)	
+        {									                        
+            _direction = Vector3.Normalize(waypoint - transform.position);	
+            Vector2 p = Vector2.MoveTowards(transform.position, waypoint, speed);
+            GetComponent<Rigidbody2D>().MovePosition(p);
+        }
+        else 	// 如果在路径上从队列中出来
+        {
+            if (loop) waypoints.Enqueue(waypoints.Dequeue());
+            else waypoints.Dequeue();
+        }
+    }
+
+    // 处于受惊状态下时 立即往回走 并设置状态机
+    public void Frighten()
+    {
+        state = State.Run;
+        _direction *= -1;
 
         _timeToWhite = Time.time + _gm.scareLength * 0.66f;
         _timeToToggleWhite = _timeToWhite;
         GetComponent<Animator>().SetBool("Run_White", false);
 
-	}
+    }
 
-	public void Calm()
-	{
-        // if the ghost is not running, do nothing
-	    if (state != State.Run) return;
+    public void Calm()
+    {
+        // 如果鬼不在奔跑状态就直接返回 即保持不动
+        if (state != State.Run) return;
 
-		waypoints.Clear ();
-		state = State.Chase;
-	    _timeToToggleWhite = 0;
-	    _timeToWhite = 0;
+        waypoints.Clear();
+        state = State.Chase;
+        _timeToToggleWhite = 0;
+        _timeToWhite = 0;
         GetComponent<Animator>().SetBool("Run_White", false);
         GetComponent<Animator>().SetBool("Run", false);
-	}
+    }
 
+    // 改变状态机 将里面的状态根据一小段时间来回替换
     public void ToggleBlueWhite()
     {
         isWhite = !isWhite;

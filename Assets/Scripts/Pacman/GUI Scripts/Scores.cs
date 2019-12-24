@@ -8,6 +8,7 @@ public class Scores : MonoBehaviour
 
     Text scores_txt;
 
+    // 对于每个用户的分数 （失败）
     public void UpdateGUIText(List<ScoreManager.Score> scoreList)
     {
         scores_txt = GetComponent<Text>();

@@ -20,7 +20,7 @@ public class PlayerController : MonoBehaviour
 
     public static int killstreak = 0;
 
-    // script handles
+    // 脚本控制
     private GameGUINavigation GUINav;
     private GameManager GM;
     private ScoreManager SM;
@@ -85,8 +85,7 @@ public class PlayerController : MonoBehaviour
 
     bool Valid(Vector2 direction)
     {
-        // cast line from 'next to pacman' to pacman
-        // not from directly the center of next tile but just a little further from center of next tile
+
         Vector2 pos = transform.position;
         direction += new Vector2(direction.x * 0.45f, direction.y * 0.45f);
         RaycastHit2D hit = Physics2D.Linecast(pos + direction, pos);
@@ -102,17 +101,17 @@ public class PlayerController : MonoBehaviour
 
     void ReadInputAndMove()
     {
-        // move closer to destination
+        // 向目标移动更近
         Vector2 p = Vector2.MoveTowards(transform.position, _dest, speed);
         GetComponent<Rigidbody2D>().MovePosition(p);
 
-        // get the next direction from keyboard
+        // 从键盘上获取方向
         if (Input.GetAxis("Horizontal") > 0) _nextDir = Vector2.right;
         if (Input.GetAxis("Horizontal") < 0) _nextDir = -Vector2.right;
         if (Input.GetAxis("Vertical") > 0) _nextDir = Vector2.up;
         if (Input.GetAxis("Vertical") < 0) _nextDir = -Vector2.up;
 
-        // if pacman is in the center of a tile
+        // 如果pacman就在tile的中心上
         if (Vector2.Distance(_dest, transform.position) < 0.00001f)
         {
             if (Valid(_nextDir))
@@ -120,12 +119,12 @@ public class PlayerController : MonoBehaviour
                 _dest = (Vector2)transform.position + _nextDir;
                 _dir = _nextDir;
             }
-            else   // if next direction is not valid
+            else   // 如果下一个方向无效
             {
-                if (Valid(_dir))  // and the prev. direction is valid
-                    _dest = (Vector2)transform.position + _dir;   // continue on that direction
+                if (Valid(_dir))
+                    _dest = (Vector2)transform.position + _dir;
 
-                // otherwise, do nothing
+                // 否则什么也不做
             }
         }
     }
@@ -139,7 +138,7 @@ public class PlayerController : MonoBehaviour
     {
         killstreak++;
 
-        // limit killstreak at 4
+        // 杀死四个以后
         if (killstreak > 4) killstreak = 4;
 
         Instantiate(points.pointSprites[killstreak - 1], transform.position, Quaternion.identity);

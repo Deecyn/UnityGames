@@ -69,6 +69,9 @@ public class Player : MonoBehaviour
     // 飘分动画的开始显示时间
     private float _scoreAnimationStartTime;
 
+    // 记录按键状态，防止跳跃时多次按键
+    private bool enablePress = true;
+
 
     // 设置新盒子的生成的方向，初始为 x 轴的正方向
     Vector3 _direction = new Vector3(1, 0, 0);
@@ -97,6 +100,11 @@ public class Player : MonoBehaviour
 
     void Update()
     {
+        if (!enablePress)
+        {
+            return;
+        }
+
         if (Input.GetMouseButtonDown(0) || Input.GetKeyDown(KeyCode.Space))
         {
             _startTime = Time.time;
@@ -117,6 +125,7 @@ public class Player : MonoBehaviour
             //还原盒子的形状
             _currentStage.transform.DOLocalMoveY(-0.25f, 0.2f);
             _currentStage.transform.DOScaleY(0.5f, 0.2f);
+            enablePress = false;
         }
 
         // 处理按下空格时小人和盒子的动画
@@ -182,6 +191,7 @@ public class Player : MonoBehaviour
         if (collision.gameObject.name == "Ground")
         {
             OnGameOver();
+            enablePress = false;
         }
         // 碰撞的非当前盒子时
         else if (_currentStage != collision.gameObject)
@@ -197,7 +207,7 @@ public class Player : MonoBehaviour
                 RandomDirection();
                 SpawnStage();
                 MoveCamera();
-
+                enablePress = true;
             }
             else
             {
